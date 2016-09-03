@@ -1,0 +1,23 @@
+--- wp-content/plugins/movabletype-importer/movabletype-importer.php.orig	2016-09-03 23:55:57.176051109 +0900
++++ wp-content/plugins/movabletype-importer/movabletype-importer.php	2016-09-04 00:01:35.553152539 +0900
+@@ -99,7 +99,7 @@
+ 		return feof($fp);
+ 	}
+ 
+-	function fgets($fp, $len=8192) {
++	function fgets($fp, $len=81920) {
+ 		if ( $this->has_gzip() )
+ 			return gzgets($fp, $len);
+ 		return fgets($fp, $len);
+@@ -449,6 +449,11 @@
+ 			} else if ( 0 === strpos($line, 'BLOG NAME:') ) {
+ 				$blog = trim( substr($line, strlen('BLOG NAME:')) );
+ 				$ping->comment_author = $blog;
++			} else if ( 0 === strpos($line, 'TAGS:') ) {
++ 				$tags = trim( substr($line, strlen('TAGS:')) );
++				if ( '' != $tags ) {
++					$post->post_keywords .= str_replace('"', '', $tags);
++				}
+ 			} else {
+ 				// Processing multi-line field, check context.
+ 

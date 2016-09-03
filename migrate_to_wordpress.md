@@ -53,9 +53,11 @@ td2md.shを使って変換します。
 
 ### タグのインポートについて
 
-MovableTypeインポーターではタグのインポートはサポートされていないので、タグも一緒にインポートするにはプラグインに手を加える必要があるようです。
+MovableTypeインポーターでタグもインポートするにはプラグインの修正が必要になりますが、そのためのパッチ(movabletype-importer-0.4-tag.patch)を用意しました。
 
-* WordPress 3.0にMovable Typeのタグをインポートする: 小粋空間: http://www.koikikukan.com/archives/2010/07/20-013333.php
+パッチの当て方は、WordPressのディレクトリにmovabletype-importer-0.4-tag.patchを置き、patchコマンドでパッチを当てます。
+
+    $ patch -p0 < movabletype-importer-0.4-tag.patch
 
 
 WordPressへ画像ファイルをアップロードする
