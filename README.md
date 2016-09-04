@@ -2,15 +2,15 @@
 td2mt.sh: tDiary generated HTML file to MovableType file Converter
 ==================================================================
 
-[tDiary](http://www.tdiary.org/)が生成したHTMLファイルをMovableType形式に変換します。
+[tDiary](http://www.tdiary.org/)が生成したHTMLファイルをMovableType形式/Markdown形式に変換します。
 
 
 これはなに?
 -----------
 
-このツールは、tDiaryの日記を各種CMSにインポートするためのMovableType形式に変換するためのツールです。
+このツールは、tDiaryの日記を各種CMSにインポートするためのMovableType形式/Markdown形式に変換するためのツールです。
 
-変換の仕組みとしては、日記データから直接の変換をおこなうのではなく、tDiaryから出力されたHTMLファイルからMobableType形式のファイルを生成します。
+変換の仕組みとしては、日記データから直接の変換をおこなうのではなく、tDiaryから出力されたHTMLファイルからMobableType形式/Markdown形式のファイルを生成します。
 
 
 必要なツール
@@ -19,14 +19,13 @@ td2mt.sh: tDiary generated HTML file to MovableType file Converter
 - GNU bash
 - GNU sed
 - xmllint
+- pandoc
 
 Linux環境での利用を想定しています。MacやWindows環境での利用は想定していませんが、GNU関係のツールはすぐに揃うと思います。
 
-xmllintについては別途インストールをする必要があるので、Debian/Ubuntuの場合、aptを使ってlibxml2-utilsパッケージをインストールしてください。
+xmllintとpandocについては別途インストールをする必要があるので、Debian/Ubuntuの場合、aptを使ってインストールしてください。
 
-    $ sudo apt-get install libxml2-utils
-
-Redhat系のLinuxでは、libxml2パッケージの中に収められているようです。
+    $ sudo apt-get install libxml2-utils pandoc
 
 
 利用方法
@@ -39,6 +38,7 @@ Redhat系のLinuxでは、libxml2パッケージの中に収められている�
     Options:
         -s: セクションを記事として出力
             (デフォルト: 1日を記事として出力)
+        -m: 1日を記事としてMarkdown形式で出力
         -h: ヘルプを表示
 
 ファイルには、tDiaryの1日表示(http://(tDiary URL)/?date=YYYYMMDD)で表示されるHTMLファイルを指定します。
@@ -49,13 +49,14 @@ Redhat系のLinuxでは、libxml2パッケージの中に収められている�
 
 変換された記事は標準出力に出力されるので、ファイルとして保存する場合はリダイレクトを利用します。
 
-    ex)
     $ ./td2md.sh (tDiaryのHTML) > export.txt
 
 複数のファイルを指定する場合は、このような形で実行するとよいでしょう。
 
-    ex)
     $ find (HTMLファイルのあるディレクトリ) -type f | sort | while read;do ./td2mt.sh $REPLY; done > export.txt
+
+Markdown形式に変換する場合には「iframeが消える」という制約があります。これは使用しているpandocの制限によるもので、現時点では対処できないのでご了承ください。
+
 
 
 ### 著者名や投稿時間、画像パス書き換え設定
@@ -104,6 +105,8 @@ Redhat系のLinuxでは、libxml2パッケージの中に収められている�
 tDiary記法は、ユーザーが意図したとおりに書くことが難しい記法で、意図と違う形でHTMLが出力されている場合があります。その状態でセクションごとに記事を分割すると、よくわからない形で分割されてしまうので、tDiary記法で書いた日記があるかたはデフォルトの1日1記事の形を利用すると良いでしょう。
 
 Blogkitを使用している方は、Blogkitで出力されるHTMLにはセクション自体が無いのでセクションを1記事にすることはできません。
+
+Markdown形式での出力では、ifram部分が消えます。これは、pandoc自体の制限によるものです。
 
 
 最後に

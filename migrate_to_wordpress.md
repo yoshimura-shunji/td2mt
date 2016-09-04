@@ -53,7 +53,7 @@ td2md.shを使って変換します。
 
 ### タグのインポートについて
 
-MovableTypeインポーターでタグもインポートするにはプラグインの修正が必要になりますが、そのためのパッチ(movabletype-importer-0.4-tag.patch)を用意しました。
+MovableTypeインポーターでタグも同時にインポートするにはプラグインの修正が必要になりますが、そのためのパッチ(movabletype-importer-0.4-tag.patch)を用意しました。
 
 パッチの当て方は、WordPressのディレクトリにmovabletype-importer-0.4-tag.patchを置き、patchコマンドでパッチを当てます。
 
