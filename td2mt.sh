@@ -24,6 +24,10 @@ POST_ALLOW_COMMENTS="1"
 POST_CONVERT_BREAKS="0"
 POST_STATUS="Publish"
 
+# https://hexo.io/docs/front-matter.html
+MARKDOWN_POST_ALLOW_COMMENTS="true"
+MARKDOWN_FLAVOUR="markdown_github"
+
 # tDiaryと移行先の画像パス(ファイル名除く)
 # DIARY〜にtDiaryの画像パス、POST〜に移行先のパスを指定する。
 # sedで置換するので文字によってはエスケープする必要がある
@@ -43,6 +47,7 @@ $(basename ${0}) ${VERSION} is tDiary Genarated HTML File to MovableType format 
   Usage: $(basename ${0}) [OPTION] [tDiary HTML file]
 
   Options:
+    -m: Output Markdown file
     -s: Output Diary section as a post
         (Default: Diary Day as a post)
     -h: Display the help and exit
@@ -64,13 +69,41 @@ fi
 
 XMLLINT="$(which xmllint) --html --nowrap --format --xpath"
 
+# pandocのチェック
+if [ ! "$(which pandoc)" ]; then
+	cat << _EOT_ 1>&2
+$(basename ${0}): pandoc Can't Found
+  Please Install pandoc Package(Debian/Ubuntu).
+  \$ sudo apt-get install pandoc
+
+_EOT_
+	exit 1
+fi
+
+PANDOC="$(which pandoc) -t ${MARKDOWN_FLAVOUR}+ignore_line_breaks -f html --wrap=none"
+
+# pandocのチェック
+if [ ! "$(which pandoc)" ]; then
+	cat << _EOT_ 1>&2
+$(basename ${0}): pandoc Can't Found
+  Please Install pandoc Package(Debian/Ubuntu).
+  \$ sudo apt-get install pandoc
+
+_EOT_
+	exit 1
+fi
+
+PANDOC="$(which pandoc) -t ${MARKDOWN_FLAVOUR}+ignore_line_breaks -f html --wrap=none"
+
 # 引数がない場合
 [ "$#" = "0" ] && usage
 
 OUT_SWITCH=""
 
-while getopts slh OPT; do
+while getopts mslh OPT; do
 	case $OPT in
+        m) OUT_SWITCH="markdown"
+            ;;
 		s) OUT_SWITCH="section"
 			;;
 		h) usage
@@ -134,6 +167,26 @@ ${COMMENT_BODY}
 _EOT_
 }
 
+md_frontmatter(){
+        cat << _EOT_
+---
+title: $POST_TITLE
+date: $POST_DATE
+author: $POST_AUTHOR
+comments: $MARKDOWN_POST_ALLOW_COMMENTS
+tags:
+$POST_TAGS
+---
+_EOT_
+}
+
+md_body(){
+        cat << _EOT_
+${POST_BODY}
+
+_EOT_
+}
+
 # ------------------------------------------------------
 
 # POST_AUTHORが設定されていなければ読み込む
@@ -145,13 +198,17 @@ DIARY_DATE=$(${XMLLINT} 'string(//h2/span[@class="date"]/a)' "$PAGE" 2>/dev/null
 DIARY_LASTMODIFIED=$(${XMLLINT} 'string(//span[@class="lm"])' "$PAGE" 2>/dev/null | sed 's|Update: ||g; s|更新||g; s|年|-|g; s|月|-|g; s|日||g')
 DIARY_LASTMODIFIED_HEAD=$(sed -n '/http-equiv="Last-Modified"/{s|^.* content="\(.*\)">|\1|p}' "$PAGE")
 
+# 日付フォーマット
+DATE_FORMAT="%m/%d/%Y %r"
+[ "${OUT_SWITCH}" = "markdown" ] && DATE_FORMAT="%F %T"
+
 # 日記に日付があれば投稿はその日付。無くてLast modifiedがあればLast modifiedを日付に設定
 if [ "${DIARY_DATE}" ];then
-	POST_DATE=$(LANG=C date -d"${DIARY_DATE} ${POST_TIME}" +"%m/%d/%Y %r")
+	POST_DATE=$(LANG=C date -d"${DIARY_DATE} ${POST_TIME}" +"${DATE_FORMAT}")
 elif [ "${DIARY_LASTMODIFIED_HEAD}" ]; then
-	POST_DATE=$(LANG=C date -d"${DIARY_LASTMODIFIED_HEAD}" +"%m/%d/%Y %r")
+	POST_DATE=$(LANG=C date -d"${DIARY_LASTMODIFIED_HEAD}" +"${DATE_FORMAT}")
 else
-	POST_DATE=$(LANG=C date -d"${DIARY_LASTMODIFIED}" +"%m/%d/%Y %r")
+	POST_DATE=$(LANG=C date -d"${DIARY_LASTMODIFIED}" +"${DATE_FORMAT}")
 fi
 
 # 日記のSECTION数とCOMMENT数
@@ -219,7 +276,7 @@ day_post(){
 
 	# 日記タイトルを投稿タイトルに
 	POST_TITLE=$(${XMLLINT} "string(//h2/span[@class=\"title\"])" "$1" 2>/dev/null | tr -d '\n' | sed 's|^ *||; s| *$||')
-	[ ! "${POST_TITLE}" ] && POST_TITLE=$(${XMLLINT} 'string(//h2/span[@class="date"]/a)' "$1" 2>/dev/null)
+	[ ! "${POST_TITLE}" ] && POST_TITLE=$(date -d $(${XMLLINT} 'string(//h2/span[@class="date"]/a)' "$1" 2>/dev/null) +"%Y%m%d")
 
 	# 日記1日分のタグ
 	POST_TAGS=$(for _i in $(${XMLLINT} '//div[@class="tags"]' "$1" 2>/dev/null | sed 's|<[^>]*>||g; s|Tags: ||g'); do echo ${_i}; done | sort | uniq | paste -s -d",")
@@ -231,6 +288,29 @@ day_post(){
 	body
 	diary_comment $1
 	echo "--------"
+
+}
+
+#
+# markdown_post [FILE]
+# 日記1日をMarkdownファイルとして出力
+#
+
+markdown_post(){
+	local _i
+
+	# 日記タイトルを投稿タイトルに
+	POST_TITLE=$(${XMLLINT} "string(//h2/span[@class=\"title\"])" "$1" 2>/dev/null | tr -d '\n' | sed 's|^ *||; s| *$||')
+	[ ! "${POST_TITLE}" ] && POST_TITLE=$(date -d $(${XMLLINT} 'string(//h2/span[@class="date"]/a)' "$1" 2>/dev/null) +"%Y%m%d")
+
+	# 日記1日分のタグ
+	POST_TAGS=$(for _i in $(${XMLLINT} '//div[@class="tags"]' "$1" 2>/dev/null | sed 's|<[^>]*>||g; s|Tags: ||g'); do echo "- ${_i}"; done | sort | uniq )
+
+	# sectionの出力
+	POST_BODY=$(${XMLLINT} "//div[@class=\"section\"]" "$1" 2>/dev/null | sed '1,2d; $d' | sed -e "${CMD_CLEAN_POST}" -e "${CMD_REPLACE_IMG_PATH}" | ${PANDOC} - )
+
+	md_frontmatter
+	md_body
 
 }
 
@@ -271,11 +351,13 @@ $_section"
 
 }
 
+
 # ------------------------------------------------------
 
-if [ "${OUT_SWITCH}" = "section" ]; then
-  section_post $PAGE
+if [ "${OUT_SWITCH}" = "markdown" ]; then
+    markdown_post $PAGE
+elif [ "${OUT_SWITCH}" = "section" ]; then
+    section_post $PAGE
 else
-  day_post $PAGE
+    day_post $PAGE
 fi
-
