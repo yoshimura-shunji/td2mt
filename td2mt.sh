@@ -118,7 +118,7 @@ shift $((OPTIND - 1))
 readonly PAGE=$1
 
 # tDiaryが生成したHTMLのチェック 
-if [ -z "$(grep 'name="generator"' "$PAGE" | grep tDiary)" ]; then
+if [ -z "$(grep -a 'name="generator"' "$PAGE" | grep tDiary)" ]; then
 	echo "$(basename ${0}): ${PAGE}: It is not the tDiary Generated HTML file." 1>&2
 	exit 1
 fi
@@ -134,8 +134,12 @@ ALLOW COMMENTS: $POST_ALLOW_COMMENTS
 CONVERT BREAKS: $POST_CONVERT_BREAKS
 DATE: $POST_DATE
 TAGS: $POST_TAGS
------
 _EOT_
+	for CATEGORY in "${CATEGORY_ARR[@]}";
+	do
+	        echo CATEGORY: $CATEGORY
+	done
+	echo "-----"
 }
 
 body(){
@@ -194,6 +198,7 @@ _EOT_
 
 # 日記の日付。時間はPOST_TIME固定
 DIARY_DATE=$(${XMLLINT} 'string(//h2/span[@class="date"]/a)' "$PAGE" 2>/dev/null | sed -e 's|年|-|g; s|月|-|g; s|日||g; s|(.*)||g')
+ANCHOR_DATE=$(${XMLLINT} 'string(//h2/span[@class="date"]/a/@href)' "$PAGE" 2>/dev/null | sed -e 's|^.*date=||; s|\([0-9][0-9][0-9][0-9]\)\([0-9][0-9]\)\([0-9][0-9]\)|\1-\2-\3|')
 # Last modified
 DIARY_LASTMODIFIED=$(${XMLLINT} 'string(//span[@class="lm"])' "$PAGE" 2>/dev/null | sed 's|Update: ||g; s|更新||g; s|年|-|g; s|月|-|g; s|日||g')
 DIARY_LASTMODIFIED_HEAD=$(sed -n '/http-equiv="Last-Modified"/{s|^.* content="\(.*\)">|\1|p}' "$PAGE")
@@ -203,8 +208,11 @@ DATE_FORMAT="%m/%d/%Y %r"
 [ "${OUT_SWITCH}" = "markdown" ] && DATE_FORMAT="%F %T"
 
 # 日記に日付があれば投稿はその日付。無くてLast modifiedがあればLast modifiedを日付に設定
-if [ "${DIARY_DATE}" ];then
-	POST_DATE=$(LANG=C date -d"${DIARY_DATE} ${POST_TIME}" +"${DATE_FORMAT}")
+# if [ "${DIARY_DATE}" ];then
+if [[ $DIARY_DATE =~ ^[0-9]{4}\-[0-9]{2}\-[0-9]{2}$ ]]; then
+        POST_DATE=$(LANG=C date -d"${DIARY_DATE} ${POST_TIME}" +"${DATE_FORMAT}")
+elif [[ $ANCHOR_DATE =~ ^[0-9]{4}\-[0-9]{2}\-[0-9]{2}$ ]]; then
+        POST_DATE=$(LANG=C date -d"${ANCHOR_DATE} ${POST_TIME}" +"${DATE_FORMAT}")
 elif [ "${DIARY_LASTMODIFIED_HEAD}" ]; then
 	POST_DATE=$(LANG=C date -d"${DIARY_LASTMODIFIED_HEAD}" +"${DATE_FORMAT}")
 else
@@ -231,7 +239,8 @@ diary_comment(){
 	for _i in $(seq 1 $DIARY_COMMENT_COUNT); do
 
 		COMMENT_AUTHOR=$(${XMLLINT} "string(//div[@class=\"commentator\"][$_i]/span[@class=\"commentator\"])" "$1" 2>/dev/null) 
-		_date=$(${XMLLINT} "string(//div[@class=\"commentator\"][$_i]/span[@class=\"commenttime\"])" "$1" 2>/dev/null | sed 's|(\(.*\))|\1|g; s|(.)||g')
+		# _date=$(${XMLLINT} "string(//div[@class=\"commentator\"][$_i]/span[@class=\"commenttime\"])" "$1" 2>/dev/null | sed 's|(\(.*\))|\1|g; s|(.)||g')
+		_date=$(${XMLLINT} "string(//div[@class=\"commentator\"][$_i]/span[@class=\"commenttime\"])" "$1" 2>/dev/null | sed 's|年|-|g; s|月|-|g; s|日||g; s|(.)||g')
 		COMMENT_DATE=$(LANG=C date -d "$_date" +"%m/%d/%Y %r")
 
 		if [ "${COMMENT_AUTHOR}" = "TrackBack" ]; then
@@ -278,6 +287,15 @@ day_post(){
 	POST_TITLE=$(${XMLLINT} "string(//h2/span[@class=\"title\"])" "$1" 2>/dev/null | tr -d '\n' | sed 's|^ *||; s| *$||')
 	[ ! "${POST_TITLE}" ] && POST_TITLE=$(date -d $(${XMLLINT} 'string(//h2/span[@class="date"]/a)' "$1" 2>/dev/null) +"%Y%m%d")
 
+	# タイトルとカテゴリーを分離
+	ORG_POST_TITLE=${POST_TITLE}
+	POST_TITLE=$(echo ${ORG_POST_TITLE} | sed -e 's/ *\[.*\] *//')
+	CAT_STR=$(echo ${ORG_POST_TITLE} | sed -e 's/^ *\(\[.*\]\) *.*$/\1/')
+	IFS_BAK="$IFS"
+	IFS=,
+	CATEGORY_ARR=($(echo ${CAT_STR} | sed -e 's/\]\[/,/g; s/\[\|\]//g'))
+	IFS="${IFS_BAK}"
+
 	# 日記1日分のタグ
 	POST_TAGS=$(for _i in $(${XMLLINT} '//div[@class="tags"]' "$1" 2>/dev/null | sed 's|<[^>]*>||g; s|Tags: ||g'); do echo ${_i}; done | sort | uniq | paste -s -d",")
 
@@ -303,6 +321,15 @@ markdown_post(){
 	POST_TITLE=$(${XMLLINT} "string(//h2/span[@class=\"title\"])" "$1" 2>/dev/null | tr -d '\n' | sed 's|^ *||; s| *$||')
 	[ ! "${POST_TITLE}" ] && POST_TITLE=$(date -d $(${XMLLINT} 'string(//h2/span[@class="date"]/a)' "$1" 2>/dev/null) +"%Y%m%d")
 
+	# タイトルとカテゴリーを分離
+	ORG_POST_TITLE=${POST_TITLE}
+	POST_TITLE=$(echo ${ORG_POST_TITLE} | sed -e 's/ *\[.*\] *//')
+	CAT_STR=$(echo ${ORG_POST_TITLE} | sed -e 's/^ *\(\[.*\]\) *.*$/\1/')
+	IFS_BAK="$IFS"
+	IFS=,
+	CATEGORY_ARR=($(echo ${CAT_STR} | sed -e 's/\]\[/,/g; s/\[\|\]//g'))
+	IFS="${IFS_BAK}"
+
 	# 日記1日分のタグ
 	POST_TAGS=$(for _i in $(${XMLLINT} '//div[@class="tags"]' "$1" 2>/dev/null | sed 's|<[^>]*>||g; s|Tags: ||g'); do echo "- ${_i}"; done | sort | uniq )
 
@@ -326,7 +353,16 @@ section_post(){
 
 	local _i=1
 	while [ $_i -le $DIARY_SECTION_COUNT ]; do
-		POST_TITLE=$(${XMLLINT} "//div[@class=\"section\"][$_i]/h3" "$1" 2>/dev/null | tr -d '\n' | sed -e "$_title_clean_cmd")
+                POST_TITLE=$(${XMLLINT} "//div[@class=\"section\"][$_i]/h3" "$1" 2>/dev/null | tr -d '\n' | sed -e "$_title_clean_cmd")
+		# タイトルとカテゴリーを分離
+	        ORG_POST_TITLE=${POST_TITLE}
+                POST_TITLE=$(echo ${ORG_POST_TITLE} | sed -e 's/ *\[.*\] *//')
+		CAT_STR=$(echo ${ORG_POST_TITLE} | sed -e 's/^ *\(\[.*\]\) *.*$/\1/')
+		IFS_BAK="$IFS"
+		IFS=,
+		CATEGORY_ARR=($(echo ${CAT_STR} | sed -e 's/\]\[/,/g; s/\[\|\]//g'))
+		IFS="${IFS_BAK}"
+
 		POST_TAGS=$(${XMLLINT} "string(//div[@class=\"section\"][$_i]/div[@class=\"tags\"])" "$1" 2>/dev/null | sed 's|Tags: \(.*\) |\1|g;s| |,|g')
 		POST_BODY=$(${XMLLINT} "//div[@class=\"section\"][$_i]" "$1" 2>/dev/null \
 		| sed '1,2d; $d' | sed -e '/<h3>/{:loop N; /<\/h3>/!b loop; s|<h3>.*</h3>||g}' -e "${CMD_CLEAN_POST}" -e "${CMD_REPLACE_IMG_PATH}")
